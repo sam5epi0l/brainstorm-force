@@ -1,0 +1,104 @@
+# This is a basic workflow to provision a VPS, install and configure WordPress on code push
+
+name: WordPress Deploy
+
+# Controls when the workflow will run
+on:
+  # Triggers the workflow on push events to the main branch
+  push:
+    branches: [ main ]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # This job provisions a VPS with DigitalOcean and installs WordPress
+  deploy:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v2
+
+      # Uses a community action to create a DigitalOcean droplet
+      - name: Create DigitalOcean Droplet
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }} # You need to store your DigitalOcean access token as a secret in your repository settings
+          args: compute droplet create wordpress --size s-1vcpu-1gb --image ubuntu-22-04-x64 --region nyc3 --ssh-keys ${{ secrets.SSH_KEY_FINGERPRINT }} --wait # You need to store your SSH key fingerprint as a secret in your repository settings
+
+      # Uses a community action to get the IP address of the droplet
+      - name: Get Droplet IP
+        id: droplet-ip
+        uses: mxschmitt/action-get-digitalocean-droplet-ip@v1
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+          name: wordpress
+
+      # Uses a community action to run commands on the droplet via SSH
+      - name: Run commands on Droplet
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ steps.droplet-ip.outputs.ip }}
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }} # You need to store your SSH private key as a secret in your repository settings
+          script: |
+            # Update and upgrade the system packages
+            apt update && apt upgrade -y
+
+            # Install Nginx, MySQL, PHP and other dependencies
+            apt install nginx mysql-server php-fpm php-mysql php-curl php-gd php-intl php-mbstring php-soap php-xml php-xmlrpc php-zip -y
+
+            # Configure MySQL database and user for WordPress
+            mysql -e "CREATE DATABASE wordpress DEFAULT CHARACTER SET utf8 COLLATE utf8_unicode_ci;"
+            mysql -e "CREATE USER 'wordpressuser'@'localhost' IDENTIFIED BY 'password';" # You can change the username and password as per your choice
+            mysql -e "GRANT ALL ON wordpress.* TO 'wordpressuser'@'localhost';"
+            mysql -e "FLUSH PRIVILEGES;"
+
+            # Configure Nginx server block for WordPress
+            cat > /etc/nginx/sites-available/wordpress << EOF
+            server {
+                listen 80;
+                listen [::]:80;
+
+                root /var/www/html/wordpress;
+                index index.php index.html index.htm;
+
+                server_name wordpress; # You can change the server name as per your choice
+
+                location / {
+                    try_files \$uri \$uri/ /index.php?\$args;
+                }
+
+                location ~ \.php$ {
+                    include snippets/fastcgi-php.conf;
+                    fastcgi_pass unix:/var/run/php/php7.4-fpm.sock; # You may need to change the PHP version as per your installation
+                }
+
+                location ~ /\.ht {
+                    deny all;
+                }
+            }
+            EOF
+
+            # Enable the Nginx server block and restart Nginx service
+            ln -s /etc/nginx/sites-available/wordpress /etc/nginx/sites-enabled/
+            systemctl restart nginx
+
+            # Download and extract WordPress files from the official website
+            wget https://wordpress.org/latest.tar.gz
+            tar xzvf latest.tar.gz
+            cp -a wordpress/. /var/www/html/wordpress
+
+            # Set ownership and permissions for WordPress files and folders
+            chown -R www-data:www-data /var/www/html/wordpress
+            find /var/www/html/wordpress/ -type d -exec chmod 750 {} \;
+            find /var/www/html/wordpress/ -type f -exec chmod 640 {} \;
+
+      # Outputs the droplet IP address for further use or reference
+      - name: Output Droplet IP
+        run: echo "The IP address of the droplet is ${{ steps.droplet-ip.outputs.ip }}"
+
