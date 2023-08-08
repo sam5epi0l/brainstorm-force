@@ -1,100 +1,28 @@
-# This is a basic workflow to provision a VPS, install and configure WordPress on code push
+# Placeholder `setup-trellis-cli` action for deploying Trellis sites
 
-name: WordPress Deploy
+name: Deploy site
 
-# Controls when the workflow will run
 on:
-  # Triggers the workflow on push events to the main branch
-  push:
-    branches: [ main ]
-
-  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
+  push:
+    branches: [main]
 
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  # This job provisions a VPS with DigitalOcean and installs WordPress
   deploy:
-    # The type of runner that the job will run on
     runs-on: ubuntu-latest
 
-    # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v2
-
-      # Uses a third-party action to create a DigitalOcean droplet
-      - name: Create DigitalOcean Droplet
-        uses: digitalocean/action-doctl@v2
-        with:
-          # The name of the droplet
-          droplet_name: wordpress-droplet
-          # The size of the droplet (e.g., s-1vcpu-1gb)
-          size: s-1vcpu-1gb
-          # The region of the droplet (e.g., nyc1)
-          region: nyc1
-          # The image of the droplet (e.g., ubuntu-22-04-x64)
-          image: ubuntu-22-04-x64
-          # The SSH key to access the droplet
-          ssh_key_fingerprint: ${{ secrets.SSH_KEY_FINGERPRINT }}
-        env:
-          # The DigitalOcean API token
-          DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
-
-      # Uses a third-party action to run commands on the droplet via SSH
-      - name: Run commands on droplet
-        uses: appleboy/ssh-action@master
-        with:
-          # The host of the droplet (use the output of the previous step)
-          host: ${{ steps.create_droplet.outputs.droplet_ip }}
-          # The username of the droplet (default is root)
-          username: root
-          # The password or key of the droplet
-          key: ${{ secrets.SSH_KEY }}
-          # The port of the droplet (default is 22)
-          port: 22
-          # The commands to run on the droplet
-          script: |
-            # Update and upgrade packages
-            apt update && apt upgrade -y
-
-            # Install Nginx, MySQL, PHP and other dependencies
-            apt install nginx mysql-server php-fpm php-mysql php-curl php-gd php-intl php-mbstring php-soap php-xml php-xmlrpc php-zip -y
-
-            # Configure firewall rules to allow HTTP, HTTPS and SSH traffic
-            ufw allow OpenSSH
-            ufw allow 'Nginx Full'
-            ufw enable
-
-            # Create a MySQL database and user for WordPress
-            mysql -e "CREATE DATABASE wordpress DEFAULT CHARACTER SET utf8 COLLATE utf8_unicode_ci;"
-            mysql -e "CREATE USER 'wordpressuser'@'localhost' IDENTIFIED BY '${{ secrets.DB_PASSWORD }}';"
-            mysql -e "GRANT ALL ON wordpress.* TO 'wordpressuser'@'localhost';"
-            mysql -e "FLUSH PRIVILEGES;"
-
-            # Download and extract WordPress files to the web root directory
-            wget https://wordpress.org/latest.tar.gz
-            tar xzvf latest.tar.gz
-            cp -a wordpress/. /var/www/html
-
-            # Set ownership and permissions for WordPress files and directories
-            chown -R www-data:www-data /var/www/html
-            find /var/www/html/ -type d -exec chmod 750 {} \;
-            find /var/www/html/ -type f -exec chmod 640 {} \;
-
-            # Create a WordPress configuration file from a sample file
-            cp /var/www/html/wp-config-sample.php /var/www/html/wp-config.php
-
-            # Generate secret keys for WordPress using a third-party API
-            curl -s https://api.wordpress.org/secret-key/1.1/salt/
-
-            # Replace the dummy values in the WordPress configuration file with the actual values
-            sed -i "s/database_name_here/wordpress/g" /var/www/html/wp-config.php
-            sed -i "s/username_here/wordpressuser/g" /var/www/html/wp-config.php
-            sed -i "s/password_here/${{ secrets.DB_PASSWORD }}/g" /var/www/html/wp-config.php
-            sed -i "/put your unique phrase here/d" /var/www/html/wp-config.php
-            sed -i "/define('AUTH_KEY'/r /dev/stdin" /var/www/html/wp-config.php <<< "$(curl -s https://api.wordpress.org/secret-key/1.1/salt/)"
-
-            # Restart Nginx and PHP services
-            systemctl restart nginx
-            systemctl restart php7.4-fpm
+    - uses: actions/checkout@v2
+    - uses: shimataro/ssh-key-action@v2
+      with:
+        key: ${{ secrets.TRELLIS_DEPLOY_SSH_PRIVATE_KEY }}
+        known_hosts: ${{ secrets.TRELLIS_DEPLOY_SSH_KNOWN_HOSTS }}
+    - uses: webfactory/ssh-agent@v0.5.4
+      with:
+        ssh-private-key: ${{ secrets.TRELLIS_DEPLOY_SSH_PRIVATE_KEY }}
+    - uses: roots/setup-trellis-cli@v1
+      with:
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+        ansible-vault-password: ${{ secrets.ANSIBLE_VAULT_PASSWORD }}
+    - name: Deploy
+      run: trellis deploy production
