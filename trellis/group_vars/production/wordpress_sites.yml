@@ -10,7 +10,7 @@ wordpress_sites:
     local_path: ../site
     branch: master
     repo: git@github.com:sam5epi0l/brainstorm-force.git
-    repo_subtree_path: site
+    # repo_subtree_path: site
     multisite:
       enabled: false
     ssl:
