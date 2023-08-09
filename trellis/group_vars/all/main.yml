@@ -21,8 +21,3 @@ raw_vars:
   - vault_wordpress_env_defaults
   - vault_wordpress_sites
 
-# groups_vars/all/main.yml (example)
-
-letsencrypt_contact_emails:
-  - jhuriyap@gmail.com
-  - "{{ mail_admin }}" # defined in groups_vars/all/mail.yml

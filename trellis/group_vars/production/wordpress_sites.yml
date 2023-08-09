@@ -5,8 +5,8 @@ wordpress_sites:
   bsf.ddns.net:
     site_hosts:
     - canonical: bsf.ddns.net
-      redirects:
-      - www.bsf.ddns.net
+      # redirects:
+      # - www.bsf.ddns.net
     local_path: ../site
     branch: master
     repo: git@github.com:sam5epi0l/brainstorm-force.git
