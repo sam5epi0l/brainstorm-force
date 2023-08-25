@@ -1,6 +1,8 @@
-# Brainstorm Force
+# DevOps Project
 
 Modern and secure WordPress (LEMP) development and deployment workflow. (See [features](https://roots.io/trellis/docs/installation/#why-use-trellis) and [back story](#back-story-))
+
+[![DigitalOcean Referral Badge](https://web-platforms.sfo2.cdn.digitaloceanspaces.com/WWW/Badge%201.svg)](https://www.digitalocean.com/?refcode=c4218921e22b&utm_campaign=Referral_Invite&utm_medium=Referral_Program&utm_source=badge)
 
 ## Prerequisites
 
